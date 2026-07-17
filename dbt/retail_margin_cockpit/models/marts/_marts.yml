@@ -1,0 +1,142 @@
+version: 2
+
+models:
+  - name: dim_channel
+    description: >
+      One row per sales channel. `region` is the row-level-security
+      dimension: see sql/postgres_rls_demo.sql and the RegionalManager
+      role in powerbi/model.bim.
+    columns:
+      - name: channel_id
+        description: Primary key.
+        tests:
+          - unique
+          - not_null
+      - name: region
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ["Northeast", "Midwest", "West", "National"]
+
+  - name: dim_product
+    description: One row per SKU with cost/price and lifecycle attributes.
+    columns:
+      - name: product_id
+        description: Primary key.
+        tests:
+          - unique
+          - not_null
+      - name: category
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ["Apparel", "Footwear", "Accessories", "Home"]
+      - name: unit_cost
+        tests:
+          - not_null
+      - name: list_price
+        tests:
+          - not_null
+
+  - name: dim_date
+    description: Contiguous calendar dimension spanning the sales history.
+    columns:
+      - name: date_day
+        description: Primary key.
+        tests:
+          - unique
+          - not_null
+
+  - name: fact_sales
+    description: >
+      Grain: one row per (product, channel, day) with at least one unit
+      sold. The core margin fact -- gross_margin_amount and
+      gross_margin_pct feed the Power BI DAX measure library directly.
+    columns:
+      - name: sale_id
+        description: Primary key.
+        tests:
+          - unique
+          - not_null
+      - name: product_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_product')
+                field: product_id
+      - name: channel_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_channel')
+                field: channel_id
+      - name: order_date
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_date')
+                field: date_day
+      - name: quantity
+        tests:
+          - not_null
+      - name: gross_margin_pct
+        description: (gross_revenue - gross_cost) / gross_revenue for the row.
+
+  - name: fact_inventory
+    description: >
+      Grain: one row per (product, channel, weekly snapshot). Powers
+      inventory turns and stockout-rate DAX measures.
+    columns:
+      - name: inventory_snapshot_id
+        description: Primary key.
+        tests:
+          - unique
+          - not_null
+      - name: product_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_product')
+                field: product_id
+      - name: channel_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_channel')
+                field: channel_id
+      - name: snapshot_date
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_date')
+                field: date_day
+      - name: on_hand_qty
+        tests:
+          - not_null
+
+  - name: dim_user_region_map
+    description: >
+      Security dimension for the Power BI row-level-security demo. Maps a
+      signed-in user's email to the single region their "Regional
+      Manager" role is scoped to; region = 'ALL' is the unrestricted HQ
+      case. See powerbi/model.bim role "Regional Manager".
+    columns:
+      - name: user_email
+        description: Primary key -- matches USERPRINCIPALNAME() in Power BI Service.
+        tests:
+          - unique
+          - not_null
+      - name: region
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ["Northeast", "Midwest", "West", "National", "ALL"]

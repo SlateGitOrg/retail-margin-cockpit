@@ -1,0 +1,38 @@
+name: "retail_margin_cockpit"
+version: "1.0.0"
+config-version: 2
+
+profile: "retail_margin_cockpit"
+
+model-paths: ["models"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+test-paths: ["tests"]
+analysis-paths: ["analyses"]
+
+clean-targets:
+  - "target"
+  - "dbt_packages"
+
+seeds:
+  retail_margin_cockpit:
+    +schema: seed
+    raw_sales:
+      +column_types:
+        order_date: date
+    raw_inventory:
+      +column_types:
+        snapshot_date: date
+    raw_products:
+      +column_types:
+        launch_date: date
+        discontinued_date: date
+
+models:
+  retail_margin_cockpit:
+    staging:
+      +materialized: view
+      +schema: staging
+    marts:
+      +materialized: table
+      +schema: marts

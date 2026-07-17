@@ -1,0 +1,6 @@
+channel_id,channel_name,channel_type,region,opened_date,base_daily_activity_rate,demand_index
+CH-NE-01,Retail Store - Northeast,Retail Store,Northeast,2019-03-01,0.86,1.05
+CH-MW-01,Retail Store - Midwest,Retail Store,Midwest,2020-06-15,0.78,0.9
+CH-WE-01,Retail Store - West,Retail Store,West,2018-11-01,0.9,1.15
+CH-ON-01,Shopify Online,Ecommerce,National,2017-01-01,0.97,1.35
+CH-WS-01,Wholesale B2B,Wholesale,National,2021-02-01,0.35,0.7

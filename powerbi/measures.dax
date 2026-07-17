@@ -1,0 +1,198 @@
+// =========================================================================
+// retail-margin-cockpit -- DAX measure library
+// =========================================================================
+// Target model: Power BI import-mode semantic model built on top of the
+// dbt star schema (fact_sales, fact_inventory, dim_product, dim_channel,
+// dim_date). dim_date is marked as the model's Date Table (Model view ->
+// dim_date -> "Mark as date table" -> date_day), which is what makes the
+// time-intelligence functions below (SAMEPERIODLASTYEAR, DATEADD,
+// TOTALYTD) correct rather than approximate.
+//
+// Relationships assumed:
+//   fact_sales[product_id]      -> dim_product[product_id]        (many:1)
+//   fact_sales[channel_id]      -> dim_channel[channel_id]         (many:1)
+//   fact_sales[order_date]      -> dim_date[date_day]              (many:1)
+//   fact_inventory[product_id]  -> dim_product[product_id]         (many:1)
+//   fact_inventory[channel_id]  -> dim_channel[channel_id]         (many:1)
+//   fact_inventory[snapshot_date] -> dim_date[date_day]            (many:1)
+//
+// Organize these into a hidden "_Measures" display folder structure in
+// Power BI Desktop: Sales, Margin, Inventory, Time Intelligence, RLS.
+// =========================================================================
+
+
+// ---------------------------------------------------------------------
+// 1. Base aggregations (Sales)
+// ---------------------------------------------------------------------
+
+Total Units Sold =
+SUM ( fact_sales[quantity] )
+
+Total Gross Revenue =
+SUM ( fact_sales[gross_revenue] )
+
+Total Gross Cost =
+SUM ( fact_sales[gross_cost] )
+
+Avg Selling Price =
+DIVIDE ( [Total Gross Revenue], [Total Units Sold] )
+
+Distinct Products Sold =
+DISTINCTCOUNT ( fact_sales[product_id] )
+
+Distinct Orders =
+DISTINCTCOUNT ( fact_sales[sale_id] )
+
+
+// ---------------------------------------------------------------------
+// 2. Margin
+// ---------------------------------------------------------------------
+
+Gross Margin $ =
+SUM ( fact_sales[gross_margin_amount] )
+
+Gross Margin % =
+DIVIDE ( [Gross Margin $], [Total Gross Revenue] )
+
+// Weighted-average discount actually realized, not the list discount --
+// useful for spotting channels/categories quietly over-discounting.
+Effective Discount % =
+VAR ListRevenue =
+    SUMX ( fact_sales, fact_sales[quantity] * RELATED ( dim_product[list_price] ) )
+RETURN
+    DIVIDE ( ListRevenue - [Total Gross Revenue], ListRevenue )
+
+// Margin at risk: revenue transacted below a 30% gross-margin floor.
+// Flags loss-leader / over-discounted lines finance should review.
+Revenue Below Margin Floor =
+CALCULATE (
+    [Total Gross Revenue],
+    FILTER ( fact_sales, fact_sales[gross_margin_pct] < 0.30 )
+)
+
+
+// ---------------------------------------------------------------------
+// 3. Inventory health
+// ---------------------------------------------------------------------
+
+Ending On Hand Units =
+CALCULATE (
+    SUM ( fact_inventory[on_hand_qty] ),
+    LASTDATE ( dim_date[date_day] )
+)
+
+Ending Inventory Value (Cost) =
+CALCULATE (
+    SUM ( fact_inventory[inventory_value_at_cost] ),
+    LASTDATE ( dim_date[date_day] )
+)
+
+Average Inventory Value (Cost) =
+AVERAGEX (
+    VALUES ( dim_date[year_month] ),
+    CALCULATE ( SUM ( fact_inventory[inventory_value_at_cost] ) )
+)
+
+// Sell-Through % = units actually sold over the period / (units sold +
+// units still sitting on shelf at period end). This is the standard
+// retail sell-through formula and only makes sense evaluated over a
+// filter context that spans both facts (e.g. a month or quarter on the
+// report page), which is why it pulls Total Units Sold directly rather
+// than assuming a shared grain with fact_inventory.
+Sell-Through % =
+VAR UnitsSold = [Total Units Sold]
+VAR EndingUnits = [Ending On Hand Units]
+RETURN
+    DIVIDE ( UnitsSold, UnitsSold + EndingUnits )
+
+// Inventory Turns (annualized) = COGS / Average Inventory Value at cost,
+// scaled to a 365-day year based on the number of distinct days in the
+// current filter context so the same measure is correct whether it's
+// sliced by month, quarter, or year on a report page.
+Inventory Turns (Annualized) =
+VAR COGS = [Total Gross Cost]
+VAR AvgInv = [Average Inventory Value (Cost)]
+VAR DaysInContext = DISTINCTCOUNT ( dim_date[date_day] )
+VAR TurnsForPeriod = DIVIDE ( COGS, AvgInv )
+RETURN
+    DIVIDE ( TurnsForPeriod * 365, DaysInContext )
+
+Stockout Rate % =
+VAR TotalSnapshots = COUNTROWS ( fact_inventory )
+VAR StockoutSnapshots =
+    CALCULATE ( COUNTROWS ( fact_inventory ), fact_inventory[is_stockout] = TRUE () )
+RETURN
+    DIVIDE ( StockoutSnapshots, TotalSnapshots )
+
+Weeks of Supply =
+VAR AvgWeeklyUnitsSold = AVERAGE ( fact_inventory[units_sold_in_week] )
+RETURN
+    DIVIDE ( [Ending On Hand Units], AvgWeeklyUnitsSold )
+
+
+// ---------------------------------------------------------------------
+// 4. Time intelligence (requires dim_date marked as the Date Table)
+// ---------------------------------------------------------------------
+
+Gross Revenue PY =
+CALCULATE ( [Total Gross Revenue], SAMEPERIODLASTYEAR ( dim_date[date_day] ) )
+
+Gross Revenue YoY % =
+VAR CurrentValue = [Total Gross Revenue]
+VAR PriorValue = [Gross Revenue PY]
+RETURN
+    DIVIDE ( CurrentValue - PriorValue, PriorValue )
+
+Gross Margin $ PY =
+CALCULATE ( [Gross Margin $], SAMEPERIODLASTYEAR ( dim_date[date_day] ) )
+
+Gross Margin % PY =
+VAR RevPY = [Gross Revenue PY]
+VAR MarginPY = [Gross Margin $ PY]
+RETURN
+    DIVIDE ( MarginPY, RevPY )
+
+Gross Margin % YoY pts =
+[Gross Margin %] - [Gross Margin % PY]
+
+Gross Revenue Prior Month =
+CALCULATE ( [Total Gross Revenue], DATEADD ( dim_date[date_day], -1, MONTH ) )
+
+Gross Revenue MoM % =
+VAR CurrentValue = [Total Gross Revenue]
+VAR PriorValue = [Gross Revenue Prior Month]
+RETURN
+    DIVIDE ( CurrentValue - PriorValue, PriorValue )
+
+Gross Revenue YTD =
+TOTALYTD ( [Total Gross Revenue], dim_date[date_day] )
+
+Gross Revenue YTD PY =
+CALCULATE ( [Total Gross Revenue], SAMEPERIODLASTYEAR ( dim_date[date_day] ), DATESYTD ( dim_date[date_day] ) )
+
+Gross Revenue YTD YoY % =
+VAR CurrentValue = [Gross Revenue YTD]
+VAR PriorValue = [Gross Revenue YTD PY]
+RETURN
+    DIVIDE ( CurrentValue - PriorValue, PriorValue )
+
+
+// ---------------------------------------------------------------------
+// 5. Row-level security helper measures
+// ---------------------------------------------------------------------
+// Not used on report pages directly -- surfaced on the Overview page as a
+// small "Signed in as: <region>" caption so a Regional Manager can see at
+// a glance which slice of the model they're scoped to. The RLS filter
+// itself lives on the dim_channel table permission for the "Regional
+// Manager" role in powerbi/model.bim, and uses the same LOOKUPVALUE
+// pattern as this measure.
+
+Current User Region =
+VAR CurrentEmail = LOWER ( USERPRINCIPALNAME () )
+VAR MappedRegion =
+    LOOKUPVALUE (
+        dim_user_region_map[region],
+        dim_user_region_map[user_email], CurrentEmail
+    )
+RETURN
+    IF ( ISBLANK ( MappedRegion ), "Unmapped user", MappedRegion )

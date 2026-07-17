@@ -1,0 +1,793 @@
+{
+  "name": "retail_margin_cockpit",
+  "compatibilityLevel": 1567,
+  "model": {
+    "culture": "en-US",
+    "defaultPowerBIDataSourceVersion": "powerBI_V3",
+    "sourceQueryCulture": "en-US",
+    "tables": [
+      {
+        "name": "dim_date",
+        "description": "Contiguous calendar dimension. Marked as the model Date Table on date_day so SAMEPERIODLASTYEAR/DATEADD/TOTALYTD in measures.dax resolve correctly.",
+        "dataCategory": "Time",
+        "columns": [
+          {
+            "name": "date_day",
+            "dataType": "dateTime",
+            "isKey": true,
+            "sourceColumn": "date_day",
+            "formatString": "yyyy-mm-dd",
+            "dataCategory": "PaddedDateTableDates"
+          },
+          {
+            "name": "fiscal_year",
+            "dataType": "int64",
+            "sourceColumn": "fiscal_year"
+          },
+          {
+            "name": "fiscal_quarter",
+            "dataType": "int64",
+            "sourceColumn": "fiscal_quarter"
+          },
+          {
+            "name": "month_number",
+            "dataType": "int64",
+            "sourceColumn": "month_number"
+          },
+          {
+            "name": "month_name",
+            "dataType": "string",
+            "sourceColumn": "month_name"
+          },
+          {
+            "name": "year_month",
+            "dataType": "string",
+            "sourceColumn": "year_month"
+          },
+          {
+            "name": "iso_week",
+            "dataType": "int64",
+            "sourceColumn": "iso_week"
+          },
+          {
+            "name": "day_of_week",
+            "dataType": "int64",
+            "sourceColumn": "day_of_week"
+          },
+          {
+            "name": "is_weekend",
+            "dataType": "boolean",
+            "sourceColumn": "is_weekend"
+          }
+        ],
+        "partitions": [
+          {
+            "name": "dim_date-partition",
+            "mode": "import",
+            "source": {
+              "type": "m",
+              "expression": [
+                "let",
+                "    Source = PostgreSQL.Database(RmcHost, RmcDatabase),",
+                "    marts = Source{[Schema=\"marts\", Item=\"dim_date\"]}[Data]",
+                "in",
+                "    marts"
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "name": "dim_product",
+        "description": "One row per SKU. From dbt model marts.dim_product.",
+        "columns": [
+          {
+            "name": "product_id",
+            "dataType": "string",
+            "isKey": true,
+            "sourceColumn": "product_id"
+          },
+          {
+            "name": "sku",
+            "dataType": "string",
+            "sourceColumn": "sku"
+          },
+          {
+            "name": "product_name",
+            "dataType": "string",
+            "sourceColumn": "product_name"
+          },
+          {
+            "name": "category",
+            "dataType": "string",
+            "sourceColumn": "category"
+          },
+          {
+            "name": "subcategory",
+            "dataType": "string",
+            "sourceColumn": "subcategory"
+          },
+          {
+            "name": "unit_cost",
+            "dataType": "double",
+            "sourceColumn": "unit_cost",
+            "formatString": "$#,##0.00"
+          },
+          {
+            "name": "list_price",
+            "dataType": "double",
+            "sourceColumn": "list_price",
+            "formatString": "$#,##0.00"
+          },
+          {
+            "name": "list_price_margin_pct",
+            "dataType": "double",
+            "sourceColumn": "list_price_margin_pct",
+            "formatString": "0.0%"
+          },
+          {
+            "name": "launch_date",
+            "dataType": "dateTime",
+            "sourceColumn": "launch_date",
+            "formatString": "yyyy-mm-dd"
+          },
+          {
+            "name": "discontinued_date",
+            "dataType": "dateTime",
+            "sourceColumn": "discontinued_date",
+            "formatString": "yyyy-mm-dd"
+          },
+          {
+            "name": "reorder_point",
+            "dataType": "int64",
+            "sourceColumn": "reorder_point"
+          },
+          {
+            "name": "target_stock_level",
+            "dataType": "int64",
+            "sourceColumn": "target_stock_level"
+          },
+          {
+            "name": "is_active",
+            "dataType": "boolean",
+            "sourceColumn": "is_active"
+          }
+        ],
+        "partitions": [
+          {
+            "name": "dim_product-partition",
+            "mode": "import",
+            "source": {
+              "type": "m",
+              "expression": [
+                "let",
+                "    Source = PostgreSQL.Database(RmcHost, RmcDatabase),",
+                "    marts = Source{[Schema=\"marts\", Item=\"dim_product\"]}[Data]",
+                "in",
+                "    marts"
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "name": "dim_channel",
+        "description": "One row per sales channel. `region` backs the Regional Manager RLS role.",
+        "columns": [
+          {
+            "name": "channel_id",
+            "dataType": "string",
+            "isKey": true,
+            "sourceColumn": "channel_id"
+          },
+          {
+            "name": "channel_name",
+            "dataType": "string",
+            "sourceColumn": "channel_name"
+          },
+          {
+            "name": "channel_type",
+            "dataType": "string",
+            "sourceColumn": "channel_type"
+          },
+          {
+            "name": "region",
+            "dataType": "string",
+            "sourceColumn": "region"
+          },
+          {
+            "name": "opened_date",
+            "dataType": "dateTime",
+            "sourceColumn": "opened_date",
+            "formatString": "yyyy-mm-dd"
+          },
+          {
+            "name": "base_daily_activity_rate",
+            "dataType": "double",
+            "sourceColumn": "base_daily_activity_rate"
+          },
+          {
+            "name": "demand_index",
+            "dataType": "double",
+            "sourceColumn": "demand_index"
+          },
+          {
+            "name": "is_national_channel",
+            "dataType": "boolean",
+            "sourceColumn": "is_national_channel"
+          }
+        ],
+        "partitions": [
+          {
+            "name": "dim_channel-partition",
+            "mode": "import",
+            "source": {
+              "type": "m",
+              "expression": [
+                "let",
+                "    Source = PostgreSQL.Database(RmcHost, RmcDatabase),",
+                "    marts = Source{[Schema=\"marts\", Item=\"dim_channel\"]}[Data]",
+                "in",
+                "    marts"
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "name": "dim_user_region_map",
+        "description": "Security dimension: maps a Power BI user's email to the region their Regional Manager role may see. Hidden from report canvas.",
+        "isHidden": true,
+        "columns": [
+          {
+            "name": "user_email",
+            "dataType": "string",
+            "isKey": true,
+            "sourceColumn": "user_email"
+          },
+          {
+            "name": "display_name",
+            "dataType": "string",
+            "sourceColumn": "display_name"
+          },
+          {
+            "name": "region",
+            "dataType": "string",
+            "sourceColumn": "region"
+          }
+        ],
+        "partitions": [
+          {
+            "name": "dim_user_region_map-partition",
+            "mode": "import",
+            "source": {
+              "type": "m",
+              "expression": [
+                "let",
+                "    Source = PostgreSQL.Database(RmcHost, RmcDatabase),",
+                "    marts = Source{[Schema=\"marts\", Item=\"dim_user_region_map\"]}[Data]",
+                "in",
+                "    marts"
+              ]
+            }
+          }
+        ],
+        "measures": [
+          {
+            "name": "Current User Region",
+            "expression": [
+              "VAR CurrentEmail = LOWER ( USERPRINCIPALNAME () )",
+              "VAR MappedRegion =",
+              "    LOOKUPVALUE (",
+              "        dim_user_region_map[region],",
+              "        dim_user_region_map[user_email], CurrentEmail",
+              "    )",
+              "RETURN",
+              "    IF ( ISBLANK ( MappedRegion ), \"Unmapped user\", MappedRegion )"
+            ],
+            "displayFolder": "RLS"
+          }
+        ]
+      },
+      {
+        "name": "fact_sales",
+        "description": "Grain: one row per (product, channel, day) with units sold. From dbt model marts.fact_sales.",
+        "columns": [
+          {
+            "name": "sale_id",
+            "dataType": "string",
+            "isKey": true,
+            "sourceColumn": "sale_id"
+          },
+          {
+            "name": "order_date",
+            "dataType": "dateTime",
+            "sourceColumn": "order_date",
+            "formatString": "yyyy-mm-dd"
+          },
+          {
+            "name": "product_id",
+            "dataType": "string",
+            "sourceColumn": "product_id"
+          },
+          {
+            "name": "channel_id",
+            "dataType": "string",
+            "sourceColumn": "channel_id"
+          },
+          {
+            "name": "quantity",
+            "dataType": "int64",
+            "sourceColumn": "quantity"
+          },
+          {
+            "name": "unit_price",
+            "dataType": "double",
+            "sourceColumn": "unit_price",
+            "formatString": "$#,##0.00"
+          },
+          {
+            "name": "unit_cost",
+            "dataType": "double",
+            "sourceColumn": "unit_cost",
+            "formatString": "$#,##0.00"
+          },
+          {
+            "name": "discount_pct",
+            "dataType": "double",
+            "sourceColumn": "discount_pct",
+            "formatString": "0.0%"
+          },
+          {
+            "name": "gross_revenue",
+            "dataType": "double",
+            "sourceColumn": "gross_revenue",
+            "formatString": "$#,##0.00"
+          },
+          {
+            "name": "gross_cost",
+            "dataType": "double",
+            "sourceColumn": "gross_cost",
+            "formatString": "$#,##0.00"
+          },
+          {
+            "name": "gross_margin_amount",
+            "dataType": "double",
+            "sourceColumn": "gross_margin_amount",
+            "formatString": "$#,##0.00"
+          },
+          {
+            "name": "gross_margin_pct",
+            "dataType": "double",
+            "sourceColumn": "gross_margin_pct",
+            "formatString": "0.0%"
+          }
+        ],
+        "partitions": [
+          {
+            "name": "fact_sales-partition",
+            "mode": "import",
+            "source": {
+              "type": "m",
+              "expression": [
+                "let",
+                "    Source = PostgreSQL.Database(RmcHost, RmcDatabase),",
+                "    marts = Source{[Schema=\"marts\", Item=\"fact_sales\"]}[Data]",
+                "in",
+                "    marts"
+              ]
+            }
+          }
+        ],
+        "measures": [
+          {
+            "name": "Total Units Sold",
+            "expression": [
+              "SUM ( fact_sales[quantity] )"
+            ],
+            "displayFolder": "Sales & Margin"
+          },
+          {
+            "name": "Total Gross Revenue",
+            "expression": [
+              "SUM ( fact_sales[gross_revenue] )"
+            ],
+            "formatString": "$#,##0",
+            "displayFolder": "Sales & Margin"
+          },
+          {
+            "name": "Total Gross Cost",
+            "expression": [
+              "SUM ( fact_sales[gross_cost] )"
+            ],
+            "formatString": "$#,##0",
+            "displayFolder": "Sales & Margin"
+          },
+          {
+            "name": "Avg Selling Price",
+            "expression": [
+              "DIVIDE ( [Total Gross Revenue], [Total Units Sold] )"
+            ],
+            "formatString": "$#,##0.00",
+            "displayFolder": "Sales & Margin"
+          },
+          {
+            "name": "Distinct Products Sold",
+            "expression": [
+              "DISTINCTCOUNT ( fact_sales[product_id] )"
+            ],
+            "displayFolder": "Sales & Margin"
+          },
+          {
+            "name": "Distinct Orders",
+            "expression": [
+              "DISTINCTCOUNT ( fact_sales[sale_id] )"
+            ],
+            "displayFolder": "Sales & Margin"
+          },
+          {
+            "name": "Gross Margin $",
+            "expression": [
+              "SUM ( fact_sales[gross_margin_amount] )"
+            ],
+            "formatString": "$#,##0",
+            "displayFolder": "Sales & Margin"
+          },
+          {
+            "name": "Gross Margin %",
+            "expression": [
+              "DIVIDE ( [Gross Margin $], [Total Gross Revenue] )"
+            ],
+            "formatString": "0.0%",
+            "displayFolder": "Sales & Margin"
+          },
+          {
+            "name": "Effective Discount %",
+            "expression": [
+              "VAR ListRevenue =",
+              "    SUMX ( fact_sales, fact_sales[quantity] * RELATED ( dim_product[list_price] ) )",
+              "RETURN",
+              "    DIVIDE ( ListRevenue - [Total Gross Revenue], ListRevenue )"
+            ],
+            "formatString": "0.0%",
+            "displayFolder": "Sales & Margin"
+          },
+          {
+            "name": "Revenue Below Margin Floor",
+            "expression": [
+              "CALCULATE (",
+              "    [Total Gross Revenue],",
+              "    FILTER ( fact_sales, fact_sales[gross_margin_pct] < 0.30 )",
+              ")"
+            ],
+            "formatString": "$#,##0",
+            "displayFolder": "Sales & Margin"
+          },
+          {
+            "name": "Gross Revenue PY",
+            "expression": [
+              "CALCULATE ( [Total Gross Revenue], SAMEPERIODLASTYEAR ( dim_date[date_day] ) )"
+            ],
+            "displayFolder": "Sales & Margin"
+          },
+          {
+            "name": "Gross Revenue YoY %",
+            "expression": [
+              "VAR CurrentValue = [Total Gross Revenue]",
+              "VAR PriorValue = [Gross Revenue PY]",
+              "RETURN",
+              "    DIVIDE ( CurrentValue - PriorValue, PriorValue )"
+            ],
+            "formatString": "+0.0%;-0.0%",
+            "displayFolder": "Sales & Margin"
+          },
+          {
+            "name": "Gross Margin $ PY",
+            "expression": [
+              "CALCULATE ( [Gross Margin $], SAMEPERIODLASTYEAR ( dim_date[date_day] ) )"
+            ],
+            "displayFolder": "Sales & Margin"
+          },
+          {
+            "name": "Gross Margin % PY",
+            "expression": [
+              "VAR RevPY = [Gross Revenue PY]",
+              "VAR MarginPY = [Gross Margin $ PY]",
+              "RETURN",
+              "    DIVIDE ( MarginPY, RevPY )"
+            ],
+            "formatString": "0.0%",
+            "displayFolder": "Sales & Margin"
+          },
+          {
+            "name": "Gross Margin % YoY pts",
+            "expression": [
+              "[Gross Margin %] - [Gross Margin % PY]"
+            ],
+            "formatString": "+0.0%;-0.0%",
+            "displayFolder": "Sales & Margin"
+          },
+          {
+            "name": "Gross Revenue Prior Month",
+            "expression": [
+              "CALCULATE ( [Total Gross Revenue], DATEADD ( dim_date[date_day], -1, MONTH ) )"
+            ],
+            "displayFolder": "Sales & Margin"
+          },
+          {
+            "name": "Gross Revenue MoM %",
+            "expression": [
+              "VAR CurrentValue = [Total Gross Revenue]",
+              "VAR PriorValue = [Gross Revenue Prior Month]",
+              "RETURN",
+              "    DIVIDE ( CurrentValue - PriorValue, PriorValue )"
+            ],
+            "formatString": "+0.0%;-0.0%",
+            "displayFolder": "Sales & Margin"
+          },
+          {
+            "name": "Gross Revenue YTD",
+            "expression": [
+              "TOTALYTD ( [Total Gross Revenue], dim_date[date_day] )"
+            ],
+            "displayFolder": "Sales & Margin"
+          },
+          {
+            "name": "Gross Revenue YTD PY",
+            "expression": [
+              "CALCULATE ( [Total Gross Revenue], SAMEPERIODLASTYEAR ( dim_date[date_day] ), DATESYTD ( dim_date[date_day] ) )"
+            ],
+            "displayFolder": "Sales & Margin"
+          },
+          {
+            "name": "Gross Revenue YTD YoY %",
+            "expression": [
+              "VAR CurrentValue = [Gross Revenue YTD]",
+              "VAR PriorValue = [Gross Revenue YTD PY]",
+              "RETURN",
+              "    DIVIDE ( CurrentValue - PriorValue, PriorValue )"
+            ],
+            "formatString": "+0.0%;-0.0%",
+            "displayFolder": "Sales & Margin"
+          }
+        ]
+      },
+      {
+        "name": "fact_inventory",
+        "description": "Grain: one row per (product, channel, weekly snapshot). From dbt model marts.fact_inventory.",
+        "columns": [
+          {
+            "name": "inventory_snapshot_id",
+            "dataType": "string",
+            "isKey": true,
+            "sourceColumn": "inventory_snapshot_id"
+          },
+          {
+            "name": "snapshot_date",
+            "dataType": "dateTime",
+            "sourceColumn": "snapshot_date",
+            "formatString": "yyyy-mm-dd"
+          },
+          {
+            "name": "product_id",
+            "dataType": "string",
+            "sourceColumn": "product_id"
+          },
+          {
+            "name": "channel_id",
+            "dataType": "string",
+            "sourceColumn": "channel_id"
+          },
+          {
+            "name": "on_hand_qty",
+            "dataType": "int64",
+            "sourceColumn": "on_hand_qty"
+          },
+          {
+            "name": "on_order_qty",
+            "dataType": "int64",
+            "sourceColumn": "on_order_qty"
+          },
+          {
+            "name": "units_sold_in_week",
+            "dataType": "int64",
+            "sourceColumn": "units_sold_in_week"
+          },
+          {
+            "name": "reorder_point",
+            "dataType": "int64",
+            "sourceColumn": "reorder_point"
+          },
+          {
+            "name": "is_stockout",
+            "dataType": "boolean",
+            "sourceColumn": "is_stockout"
+          },
+          {
+            "name": "inventory_value_at_cost",
+            "dataType": "double",
+            "sourceColumn": "inventory_value_at_cost",
+            "formatString": "$#,##0.00"
+          },
+          {
+            "name": "inventory_value_at_retail",
+            "dataType": "double",
+            "sourceColumn": "inventory_value_at_retail",
+            "formatString": "$#,##0.00"
+          }
+        ],
+        "partitions": [
+          {
+            "name": "fact_inventory-partition",
+            "mode": "import",
+            "source": {
+              "type": "m",
+              "expression": [
+                "let",
+                "    Source = PostgreSQL.Database(RmcHost, RmcDatabase),",
+                "    marts = Source{[Schema=\"marts\", Item=\"fact_inventory\"]}[Data]",
+                "in",
+                "    marts"
+              ]
+            }
+          }
+        ],
+        "measures": [
+          {
+            "name": "Ending On Hand Units",
+            "expression": [
+              "CALCULATE (",
+              "    SUM ( fact_inventory[on_hand_qty] ),",
+              "    LASTDATE ( dim_date[date_day] )",
+              ")"
+            ],
+            "displayFolder": "Inventory Health"
+          },
+          {
+            "name": "Ending Inventory Value (Cost)",
+            "expression": [
+              "CALCULATE (",
+              "    SUM ( fact_inventory[inventory_value_at_cost] ),",
+              "    LASTDATE ( dim_date[date_day] )",
+              ")"
+            ],
+            "formatString": "$#,##0",
+            "displayFolder": "Inventory Health"
+          },
+          {
+            "name": "Average Inventory Value (Cost)",
+            "expression": [
+              "AVERAGEX (",
+              "    VALUES ( dim_date[year_month] ),",
+              "    CALCULATE ( SUM ( fact_inventory[inventory_value_at_cost] ) )",
+              ")"
+            ],
+            "formatString": "$#,##0",
+            "displayFolder": "Inventory Health"
+          },
+          {
+            "name": "Sell-Through %",
+            "expression": [
+              "VAR UnitsSold = [Total Units Sold]",
+              "VAR EndingUnits = [Ending On Hand Units]",
+              "RETURN",
+              "    DIVIDE ( UnitsSold, UnitsSold + EndingUnits )"
+            ],
+            "formatString": "0.0%",
+            "displayFolder": "Inventory Health"
+          },
+          {
+            "name": "Inventory Turns (Annualized)",
+            "expression": [
+              "VAR COGS = [Total Gross Cost]",
+              "VAR AvgInv = [Average Inventory Value (Cost)]",
+              "VAR DaysInContext = DISTINCTCOUNT ( dim_date[date_day] )",
+              "VAR TurnsForPeriod = DIVIDE ( COGS, AvgInv )",
+              "RETURN",
+              "    DIVIDE ( TurnsForPeriod * 365, DaysInContext )"
+            ],
+            "formatString": "0.0",
+            "displayFolder": "Inventory Health"
+          },
+          {
+            "name": "Stockout Rate %",
+            "expression": [
+              "VAR TotalSnapshots = COUNTROWS ( fact_inventory )",
+              "VAR StockoutSnapshots =",
+              "    CALCULATE ( COUNTROWS ( fact_inventory ), fact_inventory[is_stockout] = TRUE () )",
+              "RETURN",
+              "    DIVIDE ( StockoutSnapshots, TotalSnapshots )"
+            ],
+            "formatString": "0.0%",
+            "displayFolder": "Inventory Health"
+          },
+          {
+            "name": "Weeks of Supply",
+            "expression": [
+              "VAR AvgWeeklyUnitsSold = AVERAGE ( fact_inventory[units_sold_in_week] )",
+              "RETURN",
+              "    DIVIDE ( [Ending On Hand Units], AvgWeeklyUnitsSold )"
+            ],
+            "formatString": "0.0",
+            "displayFolder": "Inventory Health"
+          }
+        ]
+      }
+    ],
+    "relationships": [
+      {
+        "name": "fact_sales-dim_product",
+        "fromTable": "fact_sales",
+        "fromColumn": "product_id",
+        "toTable": "dim_product",
+        "toColumn": "product_id",
+        "crossFilteringBehavior": "automatic"
+      },
+      {
+        "name": "fact_sales-dim_channel",
+        "fromTable": "fact_sales",
+        "fromColumn": "channel_id",
+        "toTable": "dim_channel",
+        "toColumn": "channel_id",
+        "crossFilteringBehavior": "automatic"
+      },
+      {
+        "name": "fact_sales-dim_date",
+        "fromTable": "fact_sales",
+        "fromColumn": "order_date",
+        "toTable": "dim_date",
+        "toColumn": "date_day",
+        "crossFilteringBehavior": "automatic"
+      },
+      {
+        "name": "fact_inventory-dim_product",
+        "fromTable": "fact_inventory",
+        "fromColumn": "product_id",
+        "toTable": "dim_product",
+        "toColumn": "product_id",
+        "crossFilteringBehavior": "automatic"
+      },
+      {
+        "name": "fact_inventory-dim_channel",
+        "fromTable": "fact_inventory",
+        "fromColumn": "channel_id",
+        "toTable": "dim_channel",
+        "toColumn": "channel_id",
+        "crossFilteringBehavior": "automatic"
+      },
+      {
+        "name": "fact_inventory-dim_date",
+        "fromTable": "fact_inventory",
+        "fromColumn": "snapshot_date",
+        "toTable": "dim_date",
+        "toColumn": "date_day",
+        "crossFilteringBehavior": "automatic"
+      }
+    ],
+    "roles": [
+      {
+        "name": "Regional Manager",
+        "description": "Dynamic RLS: a signed-in user sees only channels in their mapped region. Users mapped to region = 'ALL' (HQ) see every channel. Mapping lives in dim_user_region_map, keyed by USERPRINCIPALNAME().",
+        "modelPermission": "read",
+        "tablePermissions": [
+          {
+            "name": "dim_channel",
+            "filterExpression": "VAR CurrentUserRegion = LOOKUPVALUE ( dim_user_region_map[region], dim_user_region_map[user_email], LOWER ( USERPRINCIPALNAME () ) )\nRETURN\n    dim_channel[region] = CurrentUserRegion || CurrentUserRegion = \"ALL\""
+          }
+        ]
+      },
+      {
+        "name": "HQ Analyst",
+        "description": "Unrestricted read access -- no table permissions applied. Intended for finance/HQ users who need cross-region visibility without relying on the 'ALL' mapping row.",
+        "modelPermission": "read",
+        "tablePermissions": []
+      }
+    ],
+    "annotations": [
+      {
+        "name": "PBI_QueryOrder",
+        "value": "[\"dim_date\",\"dim_product\",\"dim_channel\",\"dim_user_region_map\",\"fact_sales\",\"fact_inventory\"]"
+      }
+    ]
+  }
+}

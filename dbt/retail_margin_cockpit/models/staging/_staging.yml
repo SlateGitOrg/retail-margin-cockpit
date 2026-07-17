@@ -1,0 +1,92 @@
+version: 2
+
+models:
+  - name: stg_channels
+    description: >
+      One row per sales channel (retail store, ecommerce, wholesale),
+      typed and lightly cleaned from the raw Shopify/POS channel export.
+    columns:
+      - name: channel_id
+        description: Natural key for the channel.
+        tests:
+          - unique
+          - not_null
+      - name: region
+        description: >
+          Geographic region used by the row-level-security demo. National
+          channels (Online, Wholesale) are visible only to the
+          unrestricted/HQ role.
+        tests:
+          - not_null
+
+  - name: stg_products
+    description: One row per SKU, typed and with a derived list-price margin.
+    columns:
+      - name: product_id
+        tests:
+          - unique
+          - not_null
+      - name: unit_cost
+        tests:
+          - not_null
+      - name: list_price
+        tests:
+          - not_null
+
+  - name: stg_sales
+    description: >
+      Daily grain sales rollup by (product, channel), as it would land
+      from a POS/Shopify export -- one row per product sold at a channel
+      on a given day.
+    columns:
+      - name: sale_id
+        tests:
+          - unique
+          - not_null
+      - name: product_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_products')
+                field: product_id
+      - name: channel_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_channels')
+                field: channel_id
+      - name: quantity
+        tests:
+          - not_null
+
+  - name: stg_inventory
+    description: Weekly on-hand inventory snapshot by (product, channel).
+    columns:
+      - name: inventory_snapshot_id
+        tests:
+          - unique
+          - not_null
+      - name: product_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_products')
+                field: product_id
+      - name: channel_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_channels')
+                field: channel_id
+
+  - name: stg_user_region_map
+    description: Typed pass-through of the RLS user-to-region security map.
+    columns:
+      - name: user_email
+        tests:
+          - unique
+          - not_null

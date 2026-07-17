@@ -1,0 +1,31 @@
+# Two targets against the SAME dbt project:
+#
+#   duckdb   -- default. An embedded, file-based warehouse. No server, no
+#               Docker, no network. This is what CI and local `dbt build`
+#               run against, and it's what makes this project's tests
+#               genuinely runnable in an offline sandbox.
+#
+#   postgres -- the real production target described in the README. Point
+#               it at an actual Postgres (RDS/Supabase/local) via the
+#               listed env vars and everything -- seeds, staging models,
+#               the star schema, and the generic tests -- runs unmodified.
+#
+# Select a target with `dbt build --target postgres`. duckdb is the
+# default so `dbt build` with no flags "just works" anywhere.
+retail_margin_cockpit:
+  target: duckdb
+  outputs:
+    duckdb:
+      type: duckdb
+      path: "{{ env_var('RMC_DUCKDB_PATH', 'retail_margin_cockpit.duckdb') }}"
+      threads: 4
+
+    postgres:
+      type: postgres
+      host: "{{ env_var('RMC_PG_HOST', 'localhost') }}"
+      port: "{{ env_var('RMC_PG_PORT', '5432') | int }}"
+      user: "{{ env_var('RMC_PG_USER', 'postgres') }}"
+      password: "{{ env_var('RMC_PG_PASSWORD', '') }}"
+      dbname: "{{ env_var('RMC_PG_DATABASE', 'retail_margin_cockpit') }}"
+      schema: "{{ env_var('RMC_PG_SCHEMA', 'public') }}"
+      threads: 4
