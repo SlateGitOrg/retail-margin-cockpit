@@ -70,7 +70,7 @@ Pointing the same project at a real Postgres warehouse:
 ```bash
 export RMC_PG_HOST=... RMC_PG_USER=... RMC_PG_PASSWORD=... RMC_PG_DATABASE=...
 dbt build --target postgres --project-dir dbt/retail_margin_cockpit --profiles-dir dbt/retail_margin_cockpit
-psql "$RMC_PG_DSN" -f sql/postgres_rls_demo.sql
+PGPASSWORD="$RMC_PG_PASSWORD" psql -h "$RMC_PG_HOST" -U "$RMC_PG_USER" -d "$RMC_PG_DATABASE" -f sql/postgres_rls_demo.sql
 ```
 
 ## Example
