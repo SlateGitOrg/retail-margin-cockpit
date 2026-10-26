@@ -1,151 +1,71 @@
 # retail-margin-cockpit
 
-**A governed margin & inventory source of truth for small/mid retail and DTC teams — dbt star schema, DAX measure library, and RLS-scoped Power BI cockpit, built on data that used to live in five different spreadsheets.**
+A governed margin and inventory model for retail and DTC teams: a tested dbt star schema, a DAX measure library, and a Power BI semantic model with row-level security, all built on reproducible synthetic POS, Shopify and inventory data.
 
-![retail-margin-cockpit](assets/hero.png)
+[![CI](https://github.com/SlateGitOrg/retail-margin-cockpit/actions/workflows/ci.yml/badge.svg)](https://github.com/SlateGitOrg/retail-margin-cockpit/actions/workflows/ci.yml)
 
-## The problem
+## Why
 
-At small-to-mid retail and DTC companies, "what's our margin?" is usually a
-multi-hour Friday-afternoon exercise: someone exports the POS system,
-someone else exports Shopify, inventory counts live in a separate ledger
-or a spreadsheet someone maintains by hand, and none of it joins cleanly
-because product IDs and channel names don't match across systems. Finance
-gets a different margin number than Ops. Nobody trusts the stockout
-report because it's stale by the time it's built. And a Regional Manager
-who should only see their own region's numbers instead gets a filtered
-copy of a spreadsheet, maintained by hand, that's one missed filter away
-from leaking company-wide numbers.
+At small and mid-sized retailers, "what is our margin?" is a multi-hour exercise. POS exports, Shopify exports and a hand-maintained inventory ledger never join cleanly because product IDs and channel names differ between systems. Finance and Ops end up with different margin numbers, the stockout report is stale by the time it is built, and a regional manager gets a hand-filtered spreadsheet that is one missed filter away from leaking company-wide numbers.
 
-`retail-margin-cockpit` is a working prototype of the fix: a small,
-governed dbt project that turns raw POS/Shopify/inventory exports into a
-tested star schema, plus the DAX measure library and row-level-security
-design that make that schema usable in Power BI by the people who
-actually need it — without another hand-maintained spreadsheet.
+This project replaces that with one small, tested warehouse model, the measures that sit on top of it, and a row-level-security design that is enforced both in Power BI and in Postgres.
 
-## How it works
+## Features
 
-1. **`data_generator/`** — a seeded Python generator produces two years of
-   realistic, internally-consistent retail history (five channels across
-   three regions + online + wholesale, 32 SKUs across four categories,
-   seasonality, promo windows, weekly inventory snapshots, occasional
-   stockouts) as the four raw CSVs a real retailer's POS/Shopify/inventory
-   exports would look like. Same seed, same bytes, every run — which is
-   what makes the pipeline downstream reproducible and testable.
-2. **`dbt/retail_margin_cockpit/`** — a dbt project that seeds those CSVs,
-   builds thin staging views, and materializes a star schema
-   (`fact_sales`, `fact_inventory`, `dim_product`, `dim_channel`,
-   `dim_date`, `dim_user_region_map`) with `not_null` / `unique` /
-   `relationships` / `accepted_values` tests on every key column and
-   documented column-level descriptions (`dbt docs generate` works out of
-   the box). Targets DuckDB by default (embedded, zero-setup, what CI
-   runs) and Postgres for production (`dbt build --target postgres`) —
-   same SQL, same tests, either target.
-3. **`powerbi/`** — a hand-written DAX measure library
-   (`measures.dax`: gross margin %, sell-through %, inventory turns,
-   YoY/MoM revenue, effective discount %, stockout rate, and more) and a
-   TMSL semantic model (`model.bim`) with two row-level-security roles —
-   **Regional Manager** (dynamic RLS scoped to one region via
-   `dim_user_region_map`) and **HQ Analyst** (unrestricted) — documented
-   report pages, and the bookmark/drillthrough design. `model.bim`'s
-   measures are generated from `measures.dax` by
-   `scripts/build_model_bim.py` so the two never drift apart.
-4. **`sql/postgres_rls_demo.sql`** — the same regional-manager access
-   boundary enforced one layer down, as native Postgres row-level
-   security, for the SQL clients and pipelines that don't go through
-   Power BI at all.
+- **Seeded data generator**: two years of internally consistent history (5 channels across 3 regions plus online and wholesale, 32 SKUs in 4 categories, seasonality, promo windows, weekly inventory snapshots, stockouts). The same seed produces the same bytes every run.
+- **dbt star schema**: staging views and six marts (`fact_sales`, `fact_inventory`, `dim_product`, `dim_channel`, `dim_date`, `dim_user_region_map`) with 56 generic tests (`not_null`, `unique`, `relationships`, `accepted_values`) and column-level docs.
+- **Two warehouse targets, one codebase**: embedded DuckDB by default (zero setup, what CI runs) and Postgres via `--target postgres`.
+- **DAX measure library** (`powerbi/measures.dax`): gross margin %, effective discount %, revenue below margin floor, sell-through %, annualized inventory turns, stockout rate, weeks of supply, and YoY / MoM / YTD time intelligence.
+- **TMSL semantic model** (`powerbi/model.bim`) with two RLS roles, **Regional Manager** (dynamic, scoped by `dim_user_region_map`) and **HQ Analyst** (unrestricted). Its measures are generated from `measures.dax`, so the two cannot drift.
+- **Native Postgres RLS** (`sql/postgres_rls_demo.sql`): the same access boundary enforced for SQL clients that never touch Power BI.
+
+## Architecture
 
 ```mermaid
 flowchart LR
     SRC["POS / Shopify / inventory<br/>exports (real-world source)"]
-    GEN["data_generator/<br/>(synthetic stand-in for<br/>real POS/Shopify exports)"]
-    SEEDS[("dbt seeds<br/>raw_sales / raw_inventory<br/>raw_products / raw_channels")]
-    STG["dbt staging views<br/>stg_sales, stg_inventory,<br/>stg_products, stg_channels"]
-    MARTS["dbt marts (star schema)<br/>fact_sales, fact_inventory<br/>dim_product, dim_channel, dim_date"]
-    TESTS{{"56+ dbt tests<br/>not_null / unique / relationships<br/>accepted_values"}}
+    GEN["data_generator/<br/>(synthetic stand-in)"]
+    SEEDS[("dbt seeds<br/>raw_sales, raw_inventory,<br/>raw_products, raw_channels")]
+    STG["Staging views<br/>stg_*"]
+    MARTS["Marts (star schema)<br/>fact_sales, fact_inventory,<br/>dim_product, dim_channel, dim_date"]
+    TESTS{{"56 dbt tests<br/>not_null, unique,<br/>relationships, accepted_values"}}
+    MAP["dim_user_region_map"]
     PBI["Power BI semantic model<br/>measures.dax + model.bim"]
-    RLS["Regional Manager RLS<br/>dim_user_region_map"]
+    RLS["Regional Manager RLS"]
     PG[("Postgres RLS demo<br/>sql/postgres_rls_demo.sql")]
 
     SRC -.replaced by.-> GEN
     GEN --> SEEDS --> STG --> MARTS
     MARTS --> TESTS
     MARTS --> PBI
-    MARTS --> RLS --> PBI
+    MARTS --> MAP --> RLS --> PBI
     MARTS -.production target.-> PG
 ```
 
-## The insight (why this matters)
-
-Building this out on the synthetic two-year dataset surfaces exactly the
-kind of thing this cockpit exists to catch: **Footwear quietly runs 7-8
-margin points below every other category, in every single channel.**
-
-| Category | Revenue | Gross Margin % |
-|---|---:|---:|
-| Apparel | $1.99M | 52.0% |
-| Home | $712.6K | 48.5% |
-| **Footwear** | **$601.9K** | **42.4%** |
-| Accessories | $586.0K | 52.3% |
-
-It's not one bad channel or a one-off clearance event — Footwear sits at
-~42% margin in every store, online, and wholesale alike, versus a
-company-wide blended average of 49.9%. That's invisible in a
-channel-by-channel spreadsheet reconciliation, but obvious the moment
-category and channel are joined in one governed model. If Footwear's
-margin simply matched the blended average, gross margin dollars would be
-roughly **$45K higher (~1.2% of total revenue) with zero change in units
-sold** — a pricing/discounting conversation Finance can now start with a
-number everyone agrees on, instead of three different spreadsheets.
-
-## Row-level security
-
-Two roles, mirrored in both the Power BI semantic model and the Postgres
-production target:
-
-- **Regional Manager** — dynamic RLS: `dim_channel` (and, transitively,
-  both fact tables) is filtered to the region looked up for the signed-in
-  user in `dim_user_region_map`. A mapped region of `"ALL"` (the HQ case)
-  removes the filter. See `powerbi/README.md` for exact test-as-user
-  steps in Power BI Desktop, and `sql/postgres_rls_demo.sql` for the same
-  boundary as native Postgres RLS policies.
-- **HQ Analyst** — unrestricted read, for finance/ops leadership who need
-  the whole company at once.
-
-## Why there's no `.pbix`
-
-Power BI Desktop is Windows-only and can't run in CI, and a binary
-`.pbix` doesn't diff or review meaningfully in git. Instead, the parts of
-the semantic model that *are* text — the DAX measures and the TMSL model
-definition — are checked in, tested (`tests/test_dax_measures.py`,
-`tests/test_model_bim.py`), and kept in sync by
-`scripts/build_model_bim.py`. `model.bim` opens directly in Tabular
-Editor, or as the source for a `Model.bim`-based Power BI Desktop
-project, so nothing here is hypothetical — it's the actual model, just
-stored as text instead of a binary.
+The generator writes raw CSVs into the dbt seeds folder. dbt loads them, builds thin staging views, and materializes the star schema, testing every key on the way. Power BI reads the marts through the semantic model, and the Regional Manager role filters `dim_channel` (and, through its relationships, both fact tables) using the region mapped to the signed-in user.
 
 ## Quick start
 
-Requires Python 3.11+.
+Requires Python 3.11+. Everything below runs offline, with no Docker and no Postgres.
 
 ```bash
-python -m venv .venv
+python3 -m venv .venv
 source .venv/bin/activate        # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 
-# 1. Generate the synthetic two-year retail dataset (writes to dbt seeds/)
+# 1. Generate the synthetic dataset (writes the raw CSV seeds)
 python -m data_generator.generate --out dbt/retail_margin_cockpit/seeds
 
-# 2. Build the star schema + run all dbt tests, against embedded DuckDB
+# 2. Build the star schema and run all dbt tests on embedded DuckDB
 cd dbt/retail_margin_cockpit
 dbt build --target duckdb
 cd ../..
 
-# 3. Run the full offline test suite (generator + dbt build/test + DAX/model checks)
+# 3. Run the full test suite
 python -m pytest -q
 ```
 
-To point the same dbt project at a real Postgres warehouse instead:
+Pointing the same project at a real Postgres warehouse:
 
 ```bash
 export RMC_PG_HOST=... RMC_PG_USER=... RMC_PG_PASSWORD=... RMC_PG_DATABASE=...
@@ -153,16 +73,44 @@ dbt build --target postgres --project-dir dbt/retail_margin_cockpit --profiles-d
 psql "$RMC_PG_DSN" -f sql/postgres_rls_demo.sql
 ```
 
-## Repository layout
+## Example
 
+Generating the data and building the model:
+
+```text
+Wrote synthetic retail dataset to dbt/retail_margin_cockpit/seeds: {'channels': 5, 'products': 32, 'sales': 26572, 'inventory_snapshots': 9530}
+...
+Finished running 5 seeds, 6 table models, 56 data tests, 5 view models
+Done. PASS=72 WARN=0 ERROR=0 SKIP=0 NO-OP=0 REUSED=0 TOTAL=72
 ```
-data_generator/    Seeded synthetic retail dataset generator (Python)
-dbt/                dbt project: seeds, staging views, star-schema marts, tests, docs
-powerbi/            DAX measure library (measures.dax), TMSL model (model.bim), report/RLS docs
-scripts/            build_model_bim.py -- keeps model.bim's measures in sync with measures.dax
-sql/                Postgres row-level-security demo (production-target companion to Power BI RLS)
-tests/              pytest suite: generator, dbt build+test, DAX/model consistency, RLS (opt-in)
+
+Margin by category, queried from the built DuckDB file (`RMC_DUCKDB_PATH` controls where it is written):
+
+```sql
+select p.category,
+       round(sum(gross_revenue))                                         as revenue,
+       round(100 * sum(gross_margin_amount) / sum(gross_revenue), 1)     as gross_margin_pct
+from marts.fact_sales f
+join marts.dim_product p using (product_id)
+group by 1 order by 3 desc;
 ```
+
+| Category | Revenue | Gross margin % |
+|---|---:|---:|
+| Accessories | $586.0K | 52.3% |
+| Apparel | $1.99M | 52.0% |
+| Home | $712.6K | 48.4% |
+| **Footwear** | **$601.9K** | **42.4%** |
+
+Footwear sits at roughly 42% in every channel (store, online and wholesale alike), against a blended 49.9%. That is easy to miss when channels are reconciled one spreadsheet at a time and obvious once category and channel live in one model. Matching the blended average would add about $45K of gross margin (about 1.2% of revenue) with no change in units sold. Note that this is a property of the synthetic data, which encodes a lower Footwear margin on purpose to give the model something to find.
+
+## How it works
+
+- **Determinism**: the generator is seeded, so the dbt build and its tests are reproducible and CI can assert exact structure.
+- **One SQL dialect for two engines**: models avoid engine-specific syntax so the same project and tests run on DuckDB and Postgres. `generate_schema_name` keeps schemas `seed`, `staging` and `marts` consistent across targets.
+- **Measures kept in sync**: `scripts/build_model_bim.py` regenerates the measures inside `model.bim` from `measures.dax`; tests fail if they diverge.
+- **RLS in two layers**: `Current User Region` and the `dim_channel` table permission implement dynamic RLS in Power BI (a mapped region of `ALL` removes the filter); `sql/postgres_rls_demo.sql` expresses the same rule as native Postgres policies.
+- **No `.pbix`**: Power BI Desktop is Windows-only, cannot run in CI, and a binary file does not diff in git. The DAX and TMSL are checked in as text and tested instead; `model.bim` opens in Tabular Editor or as the source for a Model.bim-based Power BI project. Report pages and the RLS test-as-user steps are documented in [powerbi/README.md](powerbi/README.md).
 
 ## Testing
 
@@ -170,22 +118,24 @@ tests/              pytest suite: generator, dbt build+test, DAX/model consisten
 python -m pytest -q
 ```
 
-This is the full offline gate and is exactly what CI runs: the generator
-determinism tests, a real `dbt build --target duckdb` (seed load, staging
-views, all 6 star-schema mart tables, and the project's 56+ generic dbt
-tests), direct SQL sanity checks against the resulting DuckDB file, and
-consistency checks between `measures.dax` and `model.bim`. No network, no
-Docker, no real Postgres. The one exception is
-`tests/test_postgres_rls.py`, an opt-in integration test against a real
-Postgres instance — it's skipped automatically unless `RMC_TEST_PG_DSN`
-is set.
+This is exactly what CI runs after `ruff check .` and a `dbt build`. The suite covers generator determinism, a real `dbt build --target duckdb` (seeds, views, all six marts, 56 generic tests), SQL sanity checks against the resulting DuckDB file, and consistency between `measures.dax` and `model.bim`. Current result: 60 passed, 1 skipped. The skipped test, `tests/test_postgres_rls.py`, is an opt-in integration test that needs a seeded Postgres and runs only when `RMC_TEST_PG_DSN` is set.
 
-## Tech stack
+## Project layout
 
-Python (synthetic data generation) · dbt (transformation + testing) ·
-DuckDB (embedded CI/dev target) · Postgres (documented production
-target) · DAX / Power Query / TMSL (Power BI semantic model, documented
-as text artifacts) · pytest.
+```text
+data_generator/    Seeded synthetic retail dataset generator
+dbt/               dbt project: seeds, staging views, star-schema marts, tests, docs
+powerbi/           measures.dax, model.bim (TMSL), report and RLS documentation
+scripts/           build_model_bim.py, syncs model.bim measures from measures.dax
+sql/               Postgres row-level-security demo
+tests/             pytest suite: generator, dbt build and test, DAX/model checks, RLS (opt-in)
+```
+
+## Limitations
+
+- The data is synthetic; the insight above reflects how it was generated, not a real retailer.
+- The Power BI report itself is documented, not shipped; only the semantic model and measures are checked in.
+- Postgres RLS is covered by an opt-in test and is not exercised in CI.
 
 ## License
 

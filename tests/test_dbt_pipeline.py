@@ -43,6 +43,7 @@ def _run_dbt(*args: str, duckdb_path) -> subprocess.CompletedProcess:
         capture_output=True,
         text=True,
         timeout=180,
+        check=False,
     )
 
 

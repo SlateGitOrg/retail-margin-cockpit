@@ -95,9 +95,9 @@ def build_dim_product() -> pd.DataFrame:
 def _promo_discount(day: _dt.date, category: str) -> float:
     best = 0.0
     for month, start_day, end_day, discount, promo_category in cfg.PROMO_WINDOWS:
-        if day.month == month and start_day <= day.day <= end_day:
-            if promo_category is None or promo_category == category:
-                best = max(best, discount)
+        in_window = day.month == month and start_day <= day.day <= end_day
+        if in_window and (promo_category is None or promo_category == category):
+            best = max(best, discount)
     return best
 
 
@@ -181,7 +181,7 @@ def build_fact_inventory(
 
     weekly_sales = (
         fact_sales.assign(week_start=fact_sales["order_date"] - pd.to_timedelta(
-            fact_sales["order_date"].dt.weekday, unit="D"
+            fact_sales["order_date"].dt.day_of_week, unit="D"
         ))
         .groupby(["week_start", "product_id", "channel_id"])["quantity"]
         .sum()
