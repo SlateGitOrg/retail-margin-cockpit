@@ -3,7 +3,7 @@
 This folder holds the *semantic model* (the part that's fully specified,
 version-controlled, and testable) and documents the *report* (the part
 that, in the real product, is a `.pbix` built in Power BI Desktop on top
-of that model). See the root README's "Why there's no .pbix" note for why
+of that model). See the root README's "How it works" section for why
 the report itself is documented rather than shipped as a binary.
 
 ## Files
